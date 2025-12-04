@@ -1,7 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { UserProvider, useUser } from './context/UserContext';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
+import { Login } from './pages/Login';
+import { CompanyProfile } from './pages/settings/CompanyProfile';
+import { Team } from './pages/settings/Team';
+
+// Views
 import { Dashboard } from './components/dashboard/Dashboard';
 import { FinancialCenter } from './components/finance/FinancialCenter';
 import { DeliveryAudit } from './components/audits/DeliveryAudit';
@@ -10,57 +16,43 @@ import { PaymentApproval } from './components/finance/PaymentApproval';
 import { FleetManagement } from './components/fleet/FleetManagement';
 import { PeopleManagement } from './components/people/PeopleManagement';
 import { CustomerManagement } from './components/crm/CustomerManagement';
-import { View, NAV_ITEMS } from './constants';
 
-const AppContent: React.FC = () => {
-  const { user } = useUser();
-  const [view, setView] = useState<View>('dashboard');
+const ProtectedLayout: React.FC = () => {
+  const { isAuthenticated, loading } = useAuth();
+  const location = useLocation();
 
-  useEffect(() => {
-    // When role changes, check if the current view is still accessible.
-    // If not, switch to the first accessible view.
-    const currentViewAccessible = NAV_ITEMS.find(item => item.view === view)?.roles.includes(user.role);
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
-    if (!currentViewAccessible) {
-      const firstAccessibleView = NAV_ITEMS.find(item => item.roles.includes(user.role));
-      if (firstAccessibleView) {
-        setView(firstAccessibleView.view);
-      }
-    }
-  }, [user.role, view]);
-
-
-  const renderView = () => {
-    switch (view) {
-      case 'dashboard':
-        return <Dashboard />;
-      case 'finance':
-        return <FinancialCenter />;
-      case 'audit':
-        return <DeliveryAudit />;
-      case 'payment-approval':
-        return <PaymentApproval />;
-      case 'fleet':
-        return <FleetManagement />;
-      case 'people':
-        return <PeopleManagement />;
-      case 'bot':
-        return <BotInteraction />;
-      case 'crm':
-        return <CustomerManagement />;
-      default:
-        const firstAccessibleView = NAV_ITEMS.find(item => item.roles.includes(user.role));
-        return firstAccessibleView?.view === 'dashboard' ? <Dashboard /> : <CustomerManagement />;
-    }
-  };
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
 
   return (
-    <div className="flex h-screen bg-gray-100 font-sans">
-      <Sidebar currentView={view} setView={setView} />
+    <div className="flex h-screen bg-slate-100 font-sans">
+      <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header />
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-6">
-          {renderView()}
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-100 p-6">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/finance" element={<FinancialCenter />} />
+            <Route path="/audit" element={<DeliveryAudit />} />
+            <Route path="/payment-approval" element={<PaymentApproval />} />
+            <Route path="/fleet" element={<FleetManagement />} />
+            <Route path="/people" element={<PeopleManagement />} />
+            <Route path="/bot" element={<BotInteraction />} />
+            <Route path="/crm" element={<CustomerManagement />} />
+
+            {/* Settings Routes */}
+            <Route path="/settings/company" element={<CompanyProfile />} />
+            <Route path="/settings/team" element={<Team />} />
+          </Routes>
         </main>
       </div>
     </div>
@@ -69,10 +61,15 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <UserProvider>
-      <AppContent />
-    </UserProvider>
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/*" element={<ProtectedLayout />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
-}
+};
 
 export default App;

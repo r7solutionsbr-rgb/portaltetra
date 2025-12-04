@@ -11,15 +11,35 @@ datasource db {
 }
 
 // ============================================
-// USER MODEL
+// COMPANY MODEL (Multi-tenant)
+// ============================================
+model Company {
+  id           String   @id @default(uuid())
+  name         String
+  cnpj         String   @unique
+  logoUrl      String?
+  primaryColor String   @default("#3b82f6")
+  settings     Json?    // { theme, features, notifications, etc }
+  users        User[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("companies")
+}
+
+// ============================================
+// USER MODEL (System Users - Authentication)
 // ============================================
 model User {
   id        String   @id @default(uuid())
   name      String
   email     String   @unique
-  password  String
-  company   String
+  password  String   // bcrypt hash
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  companyId String
   role      String   // Gestor, Financeiro, Auditor, Operacional, Comercial
+  avatarUrl String?
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

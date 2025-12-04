@@ -1,100 +1,95 @@
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
+import { AuthController } from '../controllers/AuthController';
+import { CompanyController } from '../controllers/CompanyController';
+import { UserController } from '../controllers/UserController';
+import { authenticate } from '../middlewares/auth';
+import { prisma } from '../lib/prisma';
 import { emailService } from '../services/EmailService';
 import { PaymentRequestBody } from '../types';
-import { prisma } from '../lib/prisma';
 
 const router = Router();
 
+const authController = new AuthController();
+const companyController = new CompanyController();
+const userController = new UserController();
+
 // ============================================
-// CUSTOMERS ENDPOINTS
+// PUBLIC ROUTES
 // ============================================
-router.get('/api/customers', async (req: Request, res: Response) => {
+router.post('/api/login', authController.login);
+
+// ============================================
+// PROTECTED ROUTES
+// ============================================
+
+// Auth & User
+router.get('/api/me', authenticate, authController.me);
+
+// Company Settings
+router.get('/api/company/settings', authenticate, companyController.getProfile);
+router.put('/api/company/settings', authenticate, companyController.updateProfile);
+
+// User Management
+router.get('/api/users', authenticate, userController.list);
+router.post('/api/users', authenticate, userController.create);
+router.put('/api/users/:id', authenticate, userController.update);
+
+// ============================================
+// DATA ROUTES (Protected)
+// ============================================
+
+router.get('/api/customers', authenticate, async (req, res) => {
     try {
         const customers = await prisma.customer.findMany({
-            include: {
-                contracts: true,
-            },
-            orderBy: {
-                createdAt: 'desc',
-            },
+            include: { contracts: true },
+            orderBy: { createdAt: 'desc' },
         });
-
         return res.json(customers);
     } catch (error) {
-        console.error('Failed to fetch customers:', error);
         return res.status(500).json({ error: 'Failed to fetch customers' });
     }
 });
 
-// ============================================
-// CONTRACTS ENDPOINTS
-// ============================================
-router.get('/api/contracts', async (req: Request, res: Response) => {
+router.get('/api/contracts', authenticate, async (req, res) => {
     try {
         const contracts = await prisma.contract.findMany({
-            include: {
-                customer: true,
-            },
-            orderBy: {
-                createdAt: 'desc',
-            },
+            include: { customer: true },
+            orderBy: { createdAt: 'desc' },
         });
-
         return res.json(contracts);
     } catch (error) {
-        console.error('Failed to fetch contracts:', error);
         return res.status(500).json({ error: 'Failed to fetch contracts' });
     }
 });
 
-// ============================================
-// VEHICLES ENDPOINTS
-// ============================================
-router.get('/api/vehicles', async (req: Request, res: Response) => {
+router.get('/api/vehicles', authenticate, async (req, res) => {
     try {
         const vehicles = await prisma.vehicle.findMany({
-            orderBy: {
-                plate: 'asc',
-            },
+            orderBy: { plate: 'asc' },
         });
-
         return res.json(vehicles);
     } catch (error) {
-        console.error('Failed to fetch vehicles:', error);
         return res.status(500).json({ error: 'Failed to fetch vehicles' });
     }
 });
 
-// ============================================
-// INVOICES ENDPOINTS
-// ============================================
-router.get('/api/invoices', async (req: Request, res: Response) => {
+router.get('/api/invoices', authenticate, async (req, res) => {
     try {
         const invoices = await prisma.invoice.findMany({
-            orderBy: {
-                createdAt: 'desc',
-            },
+            orderBy: { createdAt: 'desc' },
         });
-
         return res.json(invoices);
     } catch (error) {
-        console.error('Failed to fetch invoices:', error);
         return res.status(500).json({ error: 'Failed to fetch invoices' });
     }
 });
 
-// ============================================
-// DELIVERIES ENDPOINTS
-// ============================================
-router.get('/api/deliveries', async (req: Request, res: Response) => {
+router.get('/api/deliveries', authenticate, async (req, res) => {
     try {
         const deliveries = await prisma.delivery.findMany({
-            orderBy: {
-                createdAt: 'desc',
-            },
+            orderBy: { createdAt: 'desc' },
         });
 
-        // Transform flat structure to nested deliveryLocation object for frontend compatibility
         const transformedDeliveries = deliveries.map(delivery => ({
             id: delivery.id,
             orderId: delivery.orderId,
@@ -112,40 +107,29 @@ router.get('/api/deliveries', async (req: Request, res: Response) => {
 
         return res.json(transformedDeliveries);
     } catch (error) {
-        console.error('Failed to fetch deliveries:', error);
         return res.status(500).json({ error: 'Failed to fetch deliveries' });
     }
 });
 
-// ============================================
-// PAYMENT REQUESTS ENDPOINTS
-// ============================================
-router.get('/api/payment-requests', async (req: Request, res: Response) => {
+router.get('/api/payment-requests', authenticate, async (req, res) => {
     try {
         const paymentRequests = await prisma.paymentRequest.findMany({
-            orderBy: {
-                createdAt: 'desc',
-            },
+            orderBy: { createdAt: 'desc' },
         });
-
         return res.json(paymentRequests);
     } catch (error) {
-        console.error('Failed to fetch payment requests:', error);
         return res.status(500).json({ error: 'Failed to fetch payment requests' });
     }
 });
 
-router.post('/api/payment-requests', async (req: Request, res: Response) => {
+router.post('/api/payment-requests', authenticate, async (req, res) => {
     const { beneficiary, amount, dueDate, category, priority, description, attachmentUrl } = req.body as PaymentRequestBody;
 
-    // Validação simples no servidor
     if (!beneficiary || !amount || !dueDate) {
         return res.status(400).json({ error: 'Beneficiary, amount, and due date are required.' });
     }
 
     try {
-        // 1. Salvar a solicitação no banco de dados
-        console.log('Saving payment request to database...');
         const newPaymentRequest = await prisma.paymentRequest.create({
             data: {
                 beneficiary,
@@ -156,15 +140,12 @@ router.post('/api/payment-requests', async (req: Request, res: Response) => {
                 description: description || '',
                 attachmentUrl: attachmentUrl || null,
                 invoiceId: `N/A-${Date.now()}`,
-                requester: 'Gestor Logado',
+                requester: req.user?.email || 'Gestor',
                 requestDate: new Date().toLocaleDateString('pt-BR'),
                 status: 'Pendente',
             }
         });
-        console.log(`Payment request saved with ID: ${newPaymentRequest.id}`);
 
-        // 2. Enviar a notificação por e-mail
-        console.log('Sending email notification...');
         await emailService.sendPaymentRequestEmail({
             beneficiary,
             amount,
@@ -176,58 +157,39 @@ router.post('/api/payment-requests', async (req: Request, res: Response) => {
         });
 
         return res.status(201).json({
-            message: 'Payment request created successfully and notification sent.',
+            message: 'Payment request created successfully',
             id: newPaymentRequest.id
         });
 
     } catch (error) {
-        console.error('Failed to process payment request:', error);
-        return res.status(500).json({ error: 'Internal server error while processing the request.' });
+        return res.status(500).json({ error: 'Internal server error' });
     }
 });
 
-// ============================================
-// PEOPLE ENDPOINTS
-// ============================================
-router.get('/api/people', async (req: Request, res: Response) => {
+router.get('/api/people', authenticate, async (req, res) => {
     try {
         const people = await prisma.person.findMany({
-            orderBy: {
-                name: 'asc',
-            },
+            orderBy: { name: 'asc' },
         });
-
         return res.json(people);
     } catch (error) {
-        console.error('Failed to fetch people:', error);
         return res.status(500).json({ error: 'Failed to fetch people' });
     }
 });
 
-// ============================================
-// BOT MESSAGES ENDPOINTS
-// ============================================
-router.get('/api/bot-messages', async (req: Request, res: Response) => {
+router.get('/api/bot-messages', authenticate, async (req, res) => {
     try {
         const messages = await prisma.botMessage.findMany({
-            orderBy: {
-                id: 'asc',
-            },
+            orderBy: { id: 'asc' },
         });
-
         return res.json(messages);
     } catch (error) {
-        console.error('Failed to fetch bot messages:', error);
         return res.status(500).json({ error: 'Failed to fetch bot messages' });
     }
 });
 
-// ============================================
-// DASHBOARD STATS ENDPOINT
-// ============================================
-router.get('/api/dashboard-stats', async (req: Request, res: Response) => {
+router.get('/api/dashboard-stats', authenticate, async (req, res) => {
     try {
-        // Calcular estatísticas do dashboard
         const [
             totalInvoices,
             openInvoices,
@@ -246,7 +208,6 @@ router.get('/api/dashboard-stats', async (req: Request, res: Response) => {
             prisma.vehicle.count({ where: { status: 'Operacional' } }),
         ]);
 
-        // Calcular volume total consumido
         const contracts = await prisma.contract.findMany({
             where: { status: 'Ativo' },
             select: { consumedVolume: true, totalVolume: true },
@@ -255,7 +216,6 @@ router.get('/api/dashboard-stats', async (req: Request, res: Response) => {
         const totalConsumedVolume = contracts.reduce((sum, c) => sum + c.consumedVolume, 0);
         const totalContractVolume = contracts.reduce((sum, c) => sum + c.totalVolume, 0);
 
-        // Calcular total de faturas em aberto
         const openInvoicesData = await prisma.invoice.findMany({
             where: { status: 'Em Aberto' },
             select: { amount: true },
@@ -281,7 +241,6 @@ router.get('/api/dashboard-stats', async (req: Request, res: Response) => {
 
         return res.json(stats);
     } catch (error) {
-        console.error('Failed to fetch dashboard stats:', error);
         return res.status(500).json({ error: 'Failed to fetch dashboard stats' });
     }
 });

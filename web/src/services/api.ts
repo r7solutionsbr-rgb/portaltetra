@@ -5,11 +5,106 @@
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3333';
 
+/**
+ * Generic fetch helper with error handling
+ */
+async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    },
+    ...options,
+  });
+
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.statusText} (${response.status})`);
+  }
+
+  return response.json();
+}
+
 export const api = {
+  /**
+   * Customers API
+   */
+  customers: {
+    getAll: async () => {
+      return fetchAPI('/api/customers');
+    },
+  },
+
+  /**
+   * Contracts API
+   */
+  contracts: {
+    getAll: async () => {
+      return fetchAPI('/api/contracts');
+    },
+  },
+
+  /**
+   * Vehicles API
+   */
+  vehicles: {
+    getAll: async () => {
+      return fetchAPI('/api/vehicles');
+    },
+  },
+
+  /**
+   * Invoices API
+   */
+  invoices: {
+    getAll: async () => {
+      return fetchAPI('/api/invoices');
+    },
+  },
+
+  /**
+   * Deliveries API
+   */
+  deliveries: {
+    getAll: async () => {
+      return fetchAPI('/api/deliveries');
+    },
+  },
+
+  /**
+   * People API
+   */
+  people: {
+    getAll: async () => {
+      return fetchAPI('/api/people');
+    },
+  },
+
+  /**
+   * Bot Messages API
+   */
+  botMessages: {
+    getAll: async () => {
+      return fetchAPI('/api/bot-messages');
+    },
+  },
+
+  /**
+   * Dashboard Stats API
+   */
+  dashboard: {
+    getStats: async () => {
+      return fetchAPI('/api/dashboard-stats');
+    },
+  },
+
   /**
    * Payment Requests API
    */
   paymentRequests: {
+    getAll: async () => {
+      return fetchAPI('/api/payment-requests');
+    },
+
     create: async (data: {
       beneficiary: string;
       amount: number;
@@ -19,42 +114,12 @@ export const api = {
       description: string;
       attachmentUrl?: string;
     }) => {
-      const response = await fetch(`${API_BASE_URL}/api/payment-requests`, {
+      return fetchAPI('/api/payment-requests', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(data),
       });
-
-      if (!response.ok) {
-        throw new Error(`Failed to create payment request: ${response.statusText}`);
-      }
-
-      return response.json();
-    },
-
-    getAll: async () => {
-      const response = await fetch(`${API_BASE_URL}/api/payment-requests`);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch payment requests: ${response.statusText}`);
-      }
-
-      return response.json();
     },
   },
-
-  /**
-   * Add more API endpoints here as needed
-   * Example:
-   * 
-   * customers: {
-   *   getAll: async () => { ... },
-   *   getById: async (id: string) => { ... },
-   *   create: async (data) => { ... },
-   * }
-   */
 };
 
 export default api;

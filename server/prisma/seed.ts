@@ -1,11 +1,12 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log('🧹 Limpando banco de dados...');
 
-  // Limpar dados existentes (ordem importa por causa das relações)
+  // Limpar dados existentes
   await prisma.botMessage.deleteMany();
   await prisma.person.deleteMany();
   await prisma.delivery.deleteMany();
@@ -15,22 +16,45 @@ async function main() {
   await prisma.contract.deleteMany();
   await prisma.customer.deleteMany();
   await prisma.user.deleteMany();
+  await prisma.company.deleteMany();
 
   console.log('✅ Banco limpo!');
   console.log('');
   console.log('🌱 Populando banco de dados...');
 
   // ============================================
+  // 0. COMPANY (Multi-tenant)
+  // ============================================
+  console.log('📝 Criando empresa...');
+  const company = await prisma.company.create({
+    data: {
+      name: 'Transportadora Demo',
+      cnpj: '12.345.678/0001-90',
+      primaryColor: '#3b82f6',
+      logoUrl: 'https://via.placeholder.com/150',
+      settings: {
+        theme: 'dark',
+        notifications: true,
+      }
+    }
+  });
+  console.log(`   ✓ Empresa criada: ${company.name}`);
+
+  // ============================================
   // 1. USERS
   // ============================================
   console.log('📝 Criando usuários...');
+
+  const hashedPassword = await bcrypt.hash('123456', 10);
+
   const admin = await prisma.user.create({
     data: {
       name: 'Administrador',
       email: 'admin@trr.com.br',
-      password: '$2a$10$rOiXXXXXXXXXXXXXXXXXXX', // Hash fictício - em produção usar bcrypt
-      company: 'TRR Distribuidora',
+      password: hashedPassword,
+      companyId: company.id,
       role: 'Gestor',
+      avatarUrl: 'https://i.pravatar.cc/150?u=admin',
     },
   });
 
@@ -38,9 +62,10 @@ async function main() {
     data: {
       name: 'Maria Silva',
       email: 'financeiro@trr.com.br',
-      password: '$2a$10$rOiXXXXXXXXXXXXXXXXXXX',
-      company: 'TRR Distribuidora',
+      password: hashedPassword,
+      companyId: company.id,
       role: 'Financeiro',
+      avatarUrl: 'https://i.pravatar.cc/150?u=maria',
     },
   });
 
@@ -379,6 +404,7 @@ async function main() {
   console.log('='.repeat(60));
   console.log('');
   console.log('📊 Resumo:');
+  console.log(`   • ${await prisma.company.count()} empresas`);
   console.log(`   • ${await prisma.user.count()} usuários`);
   console.log(`   • ${await prisma.customer.count()} clientes`);
   console.log(`   • ${await prisma.contract.count()} contratos`);
