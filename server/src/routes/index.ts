@@ -6,6 +6,7 @@ import { authenticate } from '../middlewares/auth';
 import { prisma } from '../lib/prisma';
 import { emailService } from '../services/EmailService';
 import { PaymentRequestBody } from '../types';
+import { storageService } from '../services/StorageService';
 
 const router = Router();
 
@@ -37,6 +38,22 @@ router.put('/api/users/:id', authenticate, userController.update);
 // ============================================
 // DATA ROUTES (Protected)
 // ============================================
+
+// Uploads
+router.post('/api/uploads/signed-url', authenticate, async (req, res) => {
+    try {
+        const { fileName, fileType } = req.body;
+        if (!fileName || !fileType) {
+            return res.status(400).json({ error: 'fileName and fileType are required' });
+        }
+
+        const { uploadUrl, publicUrl } = await storageService.generateUploadUrl(fileName, fileType);
+        return res.json({ uploadUrl, publicUrl });
+    } catch (error) {
+        console.error('Upload URL generation error:', error);
+        return res.status(500).json({ error: 'Failed to generate upload URL' });
+    }
+});
 
 router.get('/api/customers', authenticate, async (req, res) => {
     try {

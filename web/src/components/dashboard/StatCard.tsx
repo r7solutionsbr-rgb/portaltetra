@@ -1,9 +1,14 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 interface StatCardProps {
   title: string;
   value: string;
   change?: number;
+  icon?: React.ReactNode;
+  valueColor?: string;
+  footerLinkText?: string;
+  footerLinkUrl?: string;
   children?: React.ReactNode;
 }
 
@@ -25,15 +30,42 @@ const TrendIcon = ({ value }: { value: number }) => {
     );
 };
 
-export const StatCard: React.FC<StatCardProps> = ({ title, value, change, children }) => {
+export const StatCard: React.FC<StatCardProps> = ({ 
+    title, 
+    value, 
+    change, 
+    icon, 
+    valueColor = 'text-gray-800', 
+    footerLinkText, 
+    footerLinkUrl, 
+    children 
+}) => {
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-      <div className="flex justify-between items-start">
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">{title}</h3>
-        {change !== undefined && <TrendIcon value={change} />}
+    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col justify-between h-full transition-shadow hover:shadow-md">
+      <div>
+          <div className="flex justify-between items-start">
+            <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">{title}</h3>
+            {icon && <div className="text-gray-400 p-2 bg-gray-50 rounded-lg">{icon}</div>}
+          </div>
+          
+          <div className="mt-4 flex items-baseline">
+            <p className={`text-3xl font-bold ${valueColor}`}>{value}</p>
+            {change !== undefined && <div className="ml-3"><TrendIcon value={change} /></div>}
+          </div>
+          
+          {children && <div className="mt-4">{children}</div>}
       </div>
-      <p className="text-3xl font-bold text-gray-800 mt-2">{value}</p>
-      {children && <div className="mt-4">{children}</div>}
+
+      {footerLinkText && footerLinkUrl && (
+        <div className="mt-4 pt-4 border-t border-gray-100">
+            <Link to={footerLinkUrl} className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center group">
+                {footerLinkText}
+                <svg className="w-4 h-4 ml-1 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+            </Link>
+        </div>
+      )}
     </div>
   );
 };

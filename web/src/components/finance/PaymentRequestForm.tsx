@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { PaymentCategory, PaymentPriority, PaymentRequest } from '../../types';
 import api from '../../services/api';
 
@@ -19,16 +19,51 @@ export const PaymentRequestForm: React.FC<PaymentRequestFormProps> = ({ onSucces
     const [category, setCategory] = useState<PaymentCategory>('Fornecedor');
     const [priority, setPriority] = useState<PaymentPriority>('Normal');
     const [description, setDescription] = useState('');
+    const [attachmentUrl, setAttachmentUrl] = useState('');
     const [attachmentName, setAttachmentName] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
 
-    const handleFakeUpload = () => {
-        setAttachmentName('Carregando...');
-        setTimeout(() => {
-            setAttachmentName(`boleto_${Date.now()}.pdf`);
-        }, 1000);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        setAttachmentName('Iniciando upload...');
+        setError('');
+
+        try {
+            // 1. Get Signed URL
+            const { uploadUrl, publicUrl } = await api.uploads.getSignedUrl(file.name, file.type);
+
+            // 2. Upload to R2
+            const uploadResponse = await fetch(uploadUrl, {
+                method: 'PUT',
+                body: file,
+                headers: {
+                    'Content-Type': file.type
+                }
+            });
+
+            if (!uploadResponse.ok) {
+                throw new Error('Falha no upload do arquivo.');
+            }
+
+            // 3. Save public URL
+            setAttachmentUrl(publicUrl);
+            setAttachmentName(file.name);
+        } catch (err: any) {
+            console.error(err);
+            setError('Erro ao fazer upload do arquivo. Tente novamente.');
+            setAttachmentName('');
+            setAttachmentUrl('');
+        } finally {
+            setIsUploading(false);
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -48,11 +83,11 @@ export const PaymentRequestForm: React.FC<PaymentRequestFormProps> = ({ onSucces
             category,
             priority,
             description,
-            attachmentUrl: attachmentName,
+            attachmentUrl: attachmentUrl || undefined,
         };
 
         try {
-            const responseData = await api.paymentRequests.create(requestBody);
+            const responseData = await api.paymentRequests.create(requestBody) as any;
 
             // Criar o objeto completo para atualizar a UI localmente
             const newRequest: PaymentRequest = {
@@ -61,7 +96,8 @@ export const PaymentRequestForm: React.FC<PaymentRequestFormProps> = ({ onSucces
                 status: 'Pendente',
                 requester: 'Gestor', // Assumindo que o usuário logado é o gestor
                 requestDate: new Date().toLocaleDateString('pt-BR'),
-                invoiceId: `N / A - ${responseData.id.slice(-4)} `,
+                invoiceId: `N/A-${responseData.id.slice(-4)}`,
+                attachmentUrl: attachmentUrl || undefined,
             };
 
             setSuccessMessage('Solicitação enviada e notificação disparada com sucesso!');
@@ -123,25 +159,41 @@ export const PaymentRequestForm: React.FC<PaymentRequestFormProps> = ({ onSucces
                 </div>
                 <div className="col-span-1 md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700">Anexo</label>
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        className="hidden"
+                        onChange={handleFileSelect}
+                    />
                     <div
-                        onClick={handleFakeUpload}
-                        className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md cursor-pointer hover:border-blue-500"
+                        onClick={() => !isUploading && fileInputRef.current?.click()}
+                        className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-md cursor-pointer transition-colors ${isUploading ? 'bg-gray-50 border-gray-300 cursor-wait' : 'border-gray-300 hover:border-blue-500'
+                            }`}
                     >
                         <div className="space-y-1 text-center">
-                            <ClipIcon className="mx-auto h-10 w-10 text-gray-400" />
-                            {attachmentName ? (
-                                <p className="text-sm text-green-600 font-semibold">{attachmentName}</p>
-                            ) : (
-                                <div className="flex text-sm text-gray-600">
-                                    <p className="pl-1">Clique para anexar o boleto ou comprovante</p>
+                            {isUploading ? (
+                                <div className="flex flex-col items-center">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
+                                    <p className="text-sm text-gray-500">Enviando arquivo...</p>
                                 </div>
+                            ) : (
+                                <>
+                                    <ClipIcon className={`mx-auto h-10 w-10 ${attachmentUrl ? 'text-green-500' : 'text-gray-400'}`} />
+                                    {attachmentName ? (
+                                        <p className="text-sm text-green-600 font-semibold">{attachmentName}</p>
+                                    ) : (
+                                        <div className="flex text-sm text-gray-600">
+                                            <p className="pl-1">Clique para anexar o boleto ou comprovante</p>
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
                     </div>
                 </div>
             </div>
             <div className="pt-4 flex justify-end">
-                <button type="submit" disabled={isSubmitting || !!successMessage} className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400">
+                <button type="submit" disabled={isSubmitting || isUploading || !!successMessage} className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400">
                     {isSubmitting ? 'Enviando...' : 'Enviar para Aprovação'}
                 </button>
             </div>

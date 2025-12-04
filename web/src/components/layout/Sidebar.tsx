@@ -1,7 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { NAV_ITEMS } from '../../constants';
+import {
+  LayoutDashboard,
+  DollarSign,
+  CheckCircle,
+  ClipboardCheck,
+  Truck,
+  Users,
+  MessageCircle,
+  Building2,
+  Users2,
+  ChevronLeft,
+  ChevronRight,
+  LogOut
+} from 'lucide-react';
 
 // Tetra Oil Logo Component
 const TetraOilLogo: React.FC<{ className?: string }> = ({ className }) => (
@@ -18,119 +31,152 @@ const TetraOilLogo: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+interface NavItem {
+  name: string;
+  path: string;
+  icon: React.ElementType;
+}
+
+interface NavCategory {
+  title: string;
+  items: NavItem[];
+}
+
+const MENU_CATEGORIES: NavCategory[] = [
+  {
+    title: 'Visão Geral',
+    items: [
+      { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+    ]
+  },
+  {
+    title: 'Financeiro',
+    items: [
+      { name: 'Central Financeira', path: '/finance', icon: DollarSign },
+      { name: 'Aprovação de Pagamentos', path: '/payment-approval', icon: CheckCircle },
+    ]
+  },
+  {
+    title: 'Operacional',
+    items: [
+      { name: 'Auditoria de Entregas', path: '/audit', icon: ClipboardCheck },
+      { name: 'Gestão de Frota', path: '/fleet', icon: Truck },
+      { name: 'Gestão de Pessoas', path: '/people', icon: Users },
+    ]
+  },
+  {
+    title: 'Comunicação',
+    items: [
+      { name: 'Interação BOTZap', path: '/bot', icon: MessageCircle },
+    ]
+  },
+  {
+    title: 'Configurações',
+    items: [
+      { name: 'Minha Empresa', path: '/settings/company', icon: Building2 },
+      { name: 'Equipe', path: '/settings/team', icon: Users2 },
+    ]
+  }
+];
+
 export const Sidebar: React.FC = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   if (!user) return null;
 
-  const accessibleNavItems = NAV_ITEMS.filter(item => item.roles.includes(user.role as any));
-
   const isActive = (path: string) => {
-    if (path === 'dashboard' && location.pathname === '/') return true;
-    return location.pathname.includes(path);
-  };
-
-  const handleNavigation = (view: string) => {
-    if (view === 'dashboard') navigate('/');
-    else navigate(`/${view}`);
+    if (path === '/' && location.pathname === '/') return true;
+    if (path !== '/' && location.pathname.startsWith(path)) return true;
+    return false;
   };
 
   return (
-    <aside className="w-72 bg-gradient-to-b from-slate-900 to-slate-950 text-white flex flex-col shadow-2xl z-20 border-r border-slate-800/50">
+    <aside
+      className={`${isCollapsed ? 'w-20' : 'w-72'} bg-gradient-to-b from-slate-900 to-slate-950 text-white flex flex-col shadow-2xl z-20 border-r border-slate-800/50 transition-all duration-300 relative`}
+    >
+      {/* Toggle Button */}
+      <button
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="absolute -right-3 top-8 bg-blue-600 text-white p-1 rounded-full shadow-lg hover:bg-blue-500 transition-colors z-30"
+      >
+        {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+      </button>
+
       {/* Brand Header */}
-      <div className="h-24 flex items-center px-6 border-b border-slate-800/60 bg-slate-900/50 backdrop-blur-sm">
+      <div className={`h-24 flex items-center ${isCollapsed ? 'justify-center' : 'px-6'} border-b border-slate-800/60 bg-slate-900/50 backdrop-blur-sm transition-all duration-300`}>
         <div className="flex items-center gap-4">
           <div className="relative">
-            <div className="absolute -inset-1 bg-blue-500 rounded-full blur opacity-25 animate-pulse"></div>
-            <TetraOilLogo className="w-10 h-10 relative z-10 shadow-lg" />
+            <div className={`absolute -inset-1 bg-blue-500 rounded-full blur opacity-25 animate-pulse ${isCollapsed ? 'hidden' : ''}`}></div>
+            <TetraOilLogo className={`${isCollapsed ? 'w-8 h-8' : 'w-10 h-10'} relative z-10 shadow-lg transition-all duration-300`} />
           </div>
-          <div className="flex flex-col">
-            <span className="text-xl font-bold tracking-tight text-white leading-none">
-              Tetra<span className="text-blue-500">Oil</span>
-            </span>
-            <span className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mt-1">
-              Portal Tetra OIL
-            </span>
-          </div>
+          {!isCollapsed && (
+            <div className="flex flex-col animate-in fade-in duration-300">
+              <span className="text-xl font-bold tracking-tight text-white leading-none">
+                Tetra<span className="text-blue-500">Oil</span>
+              </span>
+              <span className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mt-1">
+                Portal Tetra OIL
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-4 py-8 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
-        <div className="mb-3 px-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest">
-          Menu Principal
-        </div>
-        <ul className="space-y-1.5 mb-10">
-          {accessibleNavItems.map((item) => {
-            const active = isActive(item.view);
-            return (
-              <li key={item.view}>
-                <button
-                  onClick={() => handleNavigation(item.view)}
-                  className={`w-full text-left flex items-center px-4 py-3.5 rounded-xl transition-all duration-300 group relative overflow-hidden ${active
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40 translate-x-1'
-                    : 'text-slate-400 hover:bg-slate-800/50 hover:text-white hover:translate-x-1'
-                    }`}
-                >
-                  {active && (
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-400 rounded-l-xl"></div>
-                  )}
-                  <item.icon
-                    className={`h-5 w-5 mr-3.5 transition-colors duration-300 ${active ? 'text-white' : 'text-slate-500 group-hover:text-blue-400'
-                      }`}
-                  />
-                  <span className="font-medium text-sm tracking-wide">{item.name}</span>
+      <nav className="flex-1 px-3 py-6 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+        {MENU_CATEGORIES.map((category, idx) => (
+          <div key={idx} className="mb-6">
+            {!isCollapsed && (
+              <div className="mb-3 px-3 text-[11px] font-bold text-slate-500 uppercase tracking-widest animate-in fade-in duration-300">
+                {category.title}
+              </div>
+            )}
+            <ul className="space-y-1">
+              {category.items.map((item) => {
+                const active = isActive(item.path);
+                return (
+                  <li key={item.path}>
+                    <button
+                      onClick={() => navigate(item.path)}
+                      className={`w-full flex items-center ${isCollapsed ? 'justify-center px-0 py-3' : 'px-4 py-3'} rounded-xl transition-all duration-200 group relative ${active
+                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
+                        : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+                        }`}
+                    >
+                      <item.icon
+                        className={`h-5 w-5 transition-colors duration-200 ${!isCollapsed && 'mr-3'} ${active ? 'text-white' : 'text-slate-500 group-hover:text-blue-400'}`}
+                      />
 
-                  {active && (
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-12 animate-shimmer" />
-                  )}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+                      {!isCollapsed && (
+                        <span className="font-medium text-sm tracking-wide animate-in fade-in duration-200">{item.name}</span>
+                      )}
 
-        <div className="mb-3 px-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest">
-          Administração
-        </div>
-        <ul className="space-y-1.5">
-          <li>
-            <button
-              onClick={() => navigate('/settings/company')}
-              className={`w-full text-left flex items-center px-4 py-3.5 rounded-xl transition-all duration-300 group ${location.pathname === '/settings/company'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40 translate-x-1'
-                : 'text-slate-400 hover:bg-slate-800/50 hover:text-white hover:translate-x-1'
-                }`}
-            >
-              <svg className="h-5 w-5 mr-3.5 text-slate-500 group-hover:text-blue-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
-              <span className="font-medium text-sm tracking-wide">Minha Empresa</span>
-            </button>
-          </li>
-          <li>
-            <button
-              onClick={() => navigate('/settings/team')}
-              className={`w-full text-left flex items-center px-4 py-3.5 rounded-xl transition-all duration-300 group ${location.pathname === '/settings/team'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40 translate-x-1'
-                : 'text-slate-400 hover:bg-slate-800/50 hover:text-white hover:translate-x-1'
-                }`}
-            >
-              <svg className="h-5 w-5 mr-3.5 text-slate-500 group-hover:text-blue-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
-              <span className="font-medium text-sm tracking-wide">Equipe</span>
-            </button>
-          </li>
-        </ul>
+                      {/* Tooltip for Collapsed Mode */}
+                      {isCollapsed && (
+                        <div className="absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-xs font-medium rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none border border-slate-700 shadow-xl">
+                          {item.name}
+                          <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-slate-800 rotate-45 border-l border-b border-slate-700"></div>
+                        </div>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            {isCollapsed && idx < MENU_CATEGORIES.length - 1 && (
+              <div className="my-4 border-t border-slate-800/50 mx-2"></div>
+            )}
+          </div>
+        ))}
       </nav>
 
       {/* User Footer */}
       <div className="p-4 border-t border-slate-800 bg-slate-900/80 backdrop-blur-md">
-        <div className="bg-slate-800/50 rounded-xl p-3 border border-slate-700/50 mb-3 hover:border-slate-600 transition-colors group cursor-pointer">
-          <div className="flex items-center gap-3">
+        <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} transition-all duration-300`}>
+          <div className="relative group cursor-pointer">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 p-[2px] shadow-lg">
               <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
                 {user.avatarUrl ? (
@@ -140,24 +186,34 @@ export const Sidebar: React.FC = () => {
                 )}
               </div>
             </div>
-            <div className="flex-1 min-w-0">
+
+            {/* Logout Tooltip/Menu for Collapsed Mode */}
+            {isCollapsed && (
+              <button
+                onClick={signOut}
+                className="absolute left-full ml-4 bottom-0 p-2 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/20"
+                title="Sair"
+              >
+                <LogOut size={18} />
+              </button>
+            )}
+          </div>
+
+          {!isCollapsed && (
+            <div className="flex-1 min-w-0 animate-in fade-in duration-300">
               <p className="text-sm font-semibold text-white truncate group-hover:text-blue-400 transition-colors">
                 {user.name}
               </p>
-              <p className="text-xs text-slate-500 truncate">{user.email}</p>
+              <button
+                onClick={signOut}
+                className="text-xs text-slate-500 hover:text-red-400 flex items-center gap-1 mt-0.5 transition-colors"
+              >
+                <LogOut size={12} />
+                Sair
+              </button>
             </div>
-          </div>
+          )}
         </div>
-
-        <button
-          onClick={signOut}
-          className="w-full flex items-center justify-center px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-red-500/10 hover:border-red-500/20 border border-transparent rounded-lg transition-all duration-200 group"
-        >
-          <svg className="w-4 h-4 mr-2 text-slate-500 group-hover:text-red-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-          </svg>
-          <span className="group-hover:text-red-400 transition-colors">Sair do Sistema</span>
-        </button>
       </div>
     </aside>
   );
