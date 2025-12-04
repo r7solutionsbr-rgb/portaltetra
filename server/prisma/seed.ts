@@ -3,15 +3,48 @@ import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
+// ==========================================
+// HELPERS
+// ==========================================
+const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+const randomFloat = (min: number, max: number) => parseFloat((Math.random() * (max - min) + min).toFixed(2));
+const randomItem = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+
+const randomDate = (start: Date, end: Date) => {
+  return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
+};
+
+const subDays = (date: Date, days: number) => {
+  const result = new Date(date);
+  result.setDate(result.getDate() - days);
+  return result;
+};
+
+const addDays = (date: Date, days: number) => {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+};
+
+// ==========================================
+// DATA CONSTANTS
+// ==========================================
+const SEGMENTS = ['Transporte', 'Agro', 'Indústria', 'Posto de Combustível', 'Mineração'];
+const PRODUCTS = ['Diesel S-10', 'Diesel S-500', 'Arla 32', 'Etanol Hidratado', 'Gasolina C'];
+const VEHICLE_MODELS = ['Scania R450', 'Volvo FH540', 'Mercedes-Benz Actros', 'DAF XF', 'Iveco Stralis'];
+const PAYMENT_CATEGORIES = ['Fornecedor', 'Imposto', 'Serviço', 'Reembolso', 'Manutenção', 'Combustível'];
+const BENEFICIARIES = ['Petrobras Distribuidora', 'Shell Brasil', 'Ipiranga', 'Michelin Pneus', 'Seguradora Líder', 'Governo Federal'];
+const CITIES = ['São Paulo, SP', 'Campinas, SP', 'Ribeirão Preto, SP', 'Santos, SP', 'Sorocaba, SP', 'Uberlândia, MG', 'Curitiba, PR', 'Londrina, PR'];
+
 async function main() {
   console.log('🧹 Limpando banco de dados...');
 
-  // Limpar dados existentes
+  // Delete in order to respect foreign keys
   await prisma.botMessage.deleteMany();
   await prisma.person.deleteMany();
   await prisma.delivery.deleteMany();
-  await prisma.invoice.deleteMany();
   await prisma.paymentRequest.deleteMany();
+  await prisma.invoice.deleteMany();
   await prisma.vehicle.deleteMany();
   await prisma.contract.deleteMany();
   await prisma.customer.deleteMany();
@@ -20,406 +53,275 @@ async function main() {
 
   console.log('✅ Banco limpo!');
   console.log('');
-  console.log('🌱 Populando banco de dados...');
+  console.log('🌱 Iniciando Super Seed Tetra OIL...');
 
   // ============================================
-  // 0. COMPANY (Multi-tenant)
+  // 1. COMPANY & USERS
   // ============================================
-  console.log('📝 Criando empresa...');
+  console.log('🏢 Criando Tetra OIL Matriz...');
   const company = await prisma.company.create({
     data: {
-      name: 'Transportadora Demo',
+      name: 'Tetra OIL Matriz',
       cnpj: '12.345.678/0001-90',
-      primaryColor: '#3b82f6',
-      logoUrl: 'https://via.placeholder.com/150',
+      primaryColor: '#2563EB', // Blue-600
+      logoUrl: 'https://via.placeholder.com/150/2563EB/FFFFFF?text=Tetra+OIL',
       settings: {
         theme: 'dark',
         notifications: true,
+        features: ['dashboard', 'finance', 'fleet', 'crm']
       }
     }
   });
-  console.log(`   ✓ Empresa criada: ${company.name}`);
-
-  // ============================================
-  // 1. USERS
-  // ============================================
-  console.log('📝 Criando usuários...');
 
   const hashedPassword = await bcrypt.hash('123456', 10);
 
-  const admin = await prisma.user.create({
-    data: {
-      name: 'Administrador',
-      email: 'admin@trr.com.br',
-      password: hashedPassword,
-      companyId: company.id,
-      role: 'Gestor',
-      avatarUrl: 'https://i.pravatar.cc/150?u=admin',
-    },
+  await prisma.user.createMany({
+    data: [
+      {
+        name: 'Administrador',
+        email: 'admin@tetraoil.com.br',
+        password: hashedPassword,
+        companyId: company.id,
+        role: 'Gestor',
+        avatarUrl: 'https://i.pravatar.cc/150?u=admin',
+        isActive: true,
+      },
+      {
+        name: 'Ana Financeiro',
+        email: 'financeiro@tetraoil.com.br',
+        password: hashedPassword,
+        companyId: company.id,
+        role: 'Financeiro',
+        avatarUrl: 'https://i.pravatar.cc/150?u=ana',
+        isActive: true,
+      },
+      {
+        name: 'Carlos Vendas',
+        email: 'vendas@tetraoil.com.br',
+        password: hashedPassword,
+        companyId: company.id,
+        role: 'Comercial',
+        avatarUrl: 'https://i.pravatar.cc/150?u=carlos',
+        isActive: true,
+      },
+      {
+        name: 'Roberto Operações',
+        email: 'ops@tetraoil.com.br',
+        password: hashedPassword,
+        companyId: company.id,
+        role: 'Operacional',
+        avatarUrl: 'https://i.pravatar.cc/150?u=roberto',
+        isActive: true,
+      }
+    ]
   });
+  console.log('   ✓ Usuários criados');
 
-  const financeiro = await prisma.user.create({
-    data: {
-      name: 'Maria Silva',
-      email: 'financeiro@trr.com.br',
-      password: hashedPassword,
-      companyId: company.id,
-      role: 'Financeiro',
-      avatarUrl: 'https://i.pravatar.cc/150?u=maria',
-    },
+  // ============================================
+  // 2. CUSTOMERS (30)
+  // ============================================
+  console.log('👥 Criando 30 Clientes...');
+  const customersData = [];
+  for (let i = 1; i <= 30; i++) {
+    customersData.push({
+      name: `Cliente Tetra ${i} ${randomItem(['Ltda', 'S.A.', 'Transportes', 'Agro'])}`,
+      cnpj: `${randomInt(10, 99)}.${randomInt(100, 999)}.${randomInt(100, 999)}/0001-${randomInt(10, 99)}`,
+      segment: randomItem(SEGMENTS),
+      status: Math.random() > 0.1 ? 'Ativo' : 'Bloqueado', // 10% blocked
+      creditLimit: randomFloat(50000, 500000),
+      salesperson: randomItem(['Carlos Vendas', 'Mariana Lima', 'Ricardo Alves']),
+    });
+  }
+
+  // Create customers and get their IDs
+  // Prisma createMany doesn't return IDs, so we loop or use a transaction. 
+  // For seed simplicity, we'll loop create to get IDs for contracts.
+  const createdCustomers = [];
+  for (const data of customersData) {
+    const c = await prisma.customer.create({ data });
+    createdCustomers.push(c);
+  }
+  console.log('   ✓ Clientes criados');
+
+  // ============================================
+  // 3. CONTRACTS (45)
+  // ============================================
+  console.log('📄 Criando 45 Contratos...');
+  for (let i = 1; i <= 45; i++) {
+    const customer = randomItem(createdCustomers);
+    const totalVolume = randomInt(10000, 500000);
+
+    // 20% of contracts near completion (alert test)
+    let consumedVolume;
+    if (Math.random() < 0.2) {
+      consumedVolume = Math.floor(totalVolume * randomFloat(0.90, 0.99));
+    } else {
+      consumedVolume = Math.floor(totalVolume * randomFloat(0.1, 0.8));
+    }
+
+    await prisma.contract.create({
+      data: {
+        customerId: customer.id,
+        contractNumber: `CT-2023-${1000 + i}`,
+        startDate: subDays(new Date(), randomInt(30, 365)).toLocaleDateString('pt-BR'),
+        endDate: addDays(new Date(), randomInt(30, 365)).toLocaleDateString('pt-BR'),
+        totalVolume,
+        consumedVolume,
+        unitPrice: randomFloat(4.50, 6.20),
+        product: randomItem(PRODUCTS),
+        status: 'Ativo',
+      }
+    });
+  }
+  console.log('   ✓ Contratos criados');
+
+  // ============================================
+  // 4. VEHICLES (50)
+  // ============================================
+  console.log('🚛 Criando 50 Veículos...');
+  const vehiclesData = [];
+  for (let i = 1; i <= 50; i++) {
+    const status = Math.random() > 0.1 ? 'Operacional' : (Math.random() > 0.5 ? 'Em Manutenção' : 'Inativo');
+    vehiclesData.push({
+      plate: `${String.fromCharCode(65 + randomInt(0, 25))}${String.fromCharCode(65 + randomInt(0, 25))}${String.fromCharCode(65 + randomInt(0, 25))}-${randomInt(1000, 9999)}`,
+      model: randomItem(VEHICLE_MODELS),
+      driver: `Motorista ${i}`,
+      lastInspection: subDays(new Date(), randomInt(1, 180)).toLocaleDateString('pt-BR'),
+      nextInspection: addDays(new Date(), randomInt(1, 180)).toLocaleDateString('pt-BR'),
+      status,
+    });
+  }
+  await prisma.vehicle.createMany({ data: vehiclesData });
+  console.log('   ✓ Veículos criados');
+
+  // ============================================
+  // 5. INVOICES (150)
+  // ============================================
+  console.log('💰 Criando 150 Faturas (Histórico 6 meses)...');
+  const invoicesData = [];
+  const today = new Date();
+
+  for (let i = 1; i <= 150; i++) {
+    const issueDate = subDays(today, randomInt(1, 180));
+    const dueDate = addDays(issueDate, 30);
+
+    let status = 'Em Aberto';
+    // Logic for status based on date
+    if (dueDate < today) {
+      status = Math.random() > 0.2 ? 'Paga' : 'Vencida'; // 20% chance of being overdue if past due date
+    } else {
+      status = Math.random() > 0.7 ? 'Paga' : 'Em Aberto'; // Some paid in advance
+    }
+
+    invoicesData.push({
+      id: `NF-${2023000 + i}`,
+      issueDate: issueDate.toLocaleDateString('pt-BR'),
+      dueDate: dueDate.toLocaleDateString('pt-BR'),
+      amount: randomFloat(2000, 50000),
+      status,
+    });
+  }
+  await prisma.invoice.createMany({ data: invoicesData });
+  console.log('   ✓ Faturas criadas');
+
+  // ============================================
+  // 6. PAYMENT REQUESTS (50)
+  // ============================================
+  console.log('💸 Criando 50 Solicitações de Pagamento...');
+  const requestsData = [];
+  for (let i = 1; i <= 50; i++) {
+    const requestDate = subDays(today, randomInt(0, 60));
+    const status = Math.random() > 0.5 ? 'Pendente' : (Math.random() > 0.5 ? 'Aprovado' : 'Rejeitado');
+
+    requestsData.push({
+      id: `REQ-${1000 + i}`,
+      invoiceId: `NF-EXT-${randomInt(1000, 9999)}`,
+      amount: randomFloat(500, 15000),
+      requester: randomItem(['Financeiro', 'Gestor', 'Operacional']),
+      requestDate: requestDate.toLocaleDateString('pt-BR'),
+      status,
+      beneficiary: randomItem(BENEFICIARIES),
+      dueDate: addDays(requestDate, 15).toISOString().split('T')[0],
+      category: randomItem(PAYMENT_CATEGORIES),
+      description: `Pagamento de ${randomItem(PAYMENT_CATEGORIES)} referente ao mês anterior`,
+      priority: Math.random() > 0.8 ? 'Alta' : 'Normal',
+      attachmentUrl: 'https://example.com/boleto.pdf',
+    });
+  }
+  await prisma.paymentRequest.createMany({ data: requestsData });
+  console.log('   ✓ Solicitações criadas');
+
+  // ============================================
+  // 7. DELIVERIES (80)
+  // ============================================
+  console.log('🚚 Criando 80 Entregas...');
+  const deliveriesData = [];
+  for (let i = 1; i <= 80; i++) {
+    const date = subDays(today, randomInt(-10, 60)); // -10 means 10 days in future
+    let status = 'Entregue';
+
+    if (date > today) status = 'Agendado';
+    else if (date.getDate() === today.getDate()) status = Math.random() > 0.5 ? 'Em Trânsito' : 'Solicitado';
+    else status = Math.random() > 0.05 ? 'Entregue' : 'Cancelado'; // 5% cancelled in past
+
+    deliveriesData.push({
+      id: `ENT-${5000 + i}`,
+      orderId: `PED-${9000 + i}`,
+      date: date.toLocaleString('pt-BR'),
+      product: randomItem(PRODUCTS),
+      volume: randomInt(1000, 15000),
+      status,
+      deliveryLat: -23.5505 + (Math.random() - 0.5) * 0.5, // Spread around SP
+      deliveryLng: -46.6333 + (Math.random() - 0.5) * 0.5,
+      deliveryAddress: randomItem(CITIES),
+      proofOfDeliveryUrl: status === 'Entregue' ? `https://picsum.photos/seed/${i}/400/300` : '',
+    });
+  }
+  await prisma.delivery.createMany({ data: deliveriesData });
+  console.log('   ✓ Entregas criadas');
+
+  // ============================================
+  // 8. PEOPLE & BOT
+  // ============================================
+  console.log('🤖 Criando Pessoas e Bot...');
+
+  // People
+  const peopleData = [];
+  for (let i = 1; i <= 40; i++) {
+    peopleData.push({
+      name: `Colaborador ${i}`,
+      role: i <= 30 ? 'Motorista' : (i <= 35 ? 'Analista Logístico' : 'Gerente'),
+      contact: `(11) 9${randomInt(1000, 9999)}-${randomInt(1000, 9999)}`,
+      status: Math.random() > 0.1 ? 'Ativo' : 'Inativo',
+    });
+  }
+  await prisma.person.createMany({ data: peopleData });
+
+  // Bot Messages
+  await prisma.botMessage.createMany({
+    data: [
+      { sender: 'BOT', text: 'Bem-vindo ao Portal Tetra OIL! Como posso ajudar hoje?', timestamp: '08:00' },
+      { sender: 'BOT', text: 'Alerta: Contrato CT-2023-1005 atingiu 95% do volume contratado.', timestamp: '09:15' },
+      { sender: 'ADM', text: 'Obrigado, vou verificar com o cliente.', timestamp: '09:16' },
+      { sender: 'BOT', text: 'Novo pedido de Diesel S-10 recebido. Aprovar?', timestamp: '10:30' },
+      { sender: 'ADM', text: 'Aprovar.', timestamp: '10:31' },
+      { sender: 'BOT', text: 'Pedido aprovado e enviado para expedição.', timestamp: '10:31' },
+    ]
   });
-
-  console.log(`   ✓ ${await prisma.user.count()} usuários criados`);
-
-  // ============================================
-  // 2. CUSTOMERS
-  // ============================================
-  console.log('📝 Criando clientes...');
-  const customers = await Promise.all([
-    prisma.customer.create({
-      data: {
-        name: 'Transportadora Ágil Ltda',
-        cnpj: '12.345.678/0001-90',
-        segment: 'Transporte',
-        status: 'Ativo',
-        creditLimit: 150000,
-        salesperson: 'Mariana Lima',
-      },
-    }),
-    prisma.customer.create({
-      data: {
-        name: 'Agropecuária Sol Nascente',
-        cnpj: '23.456.789/0001-81',
-        segment: 'Agro',
-        status: 'Ativo',
-        creditLimit: 200000,
-        salesperson: 'Ricardo Alves',
-      },
-    }),
-    prisma.customer.create({
-      data: {
-        name: 'Indústria Metalúrgica Forte S.A.',
-        cnpj: '34.567.890/0001-72',
-        segment: 'Indústria',
-        status: 'Ativo',
-        creditLimit: 300000,
-        salesperson: 'Sofia Costa',
-      },
-    }),
-    prisma.customer.create({
-      data: {
-        name: 'Viação Rápida Express',
-        cnpj: '45.678.901/0001-63',
-        segment: 'Transporte',
-        status: 'Ativo',
-        creditLimit: 120000,
-        salesperson: 'Mariana Lima',
-      },
-    }),
-    prisma.customer.create({
-      data: {
-        name: 'Fazenda Terra Boa',
-        cnpj: '56.789.012/0001-54',
-        segment: 'Agro',
-        status: 'Bloqueado',
-        creditLimit: 80000,
-        salesperson: 'Ricardo Alves',
-      },
-    }),
-    prisma.customer.create({
-      data: {
-        name: 'Construções Alicerce S.A.',
-        cnpj: '67.890.123/0001-45',
-        segment: 'Indústria',
-        status: 'Ativo',
-        creditLimit: 250000,
-        salesperson: 'Sofia Costa',
-      },
-    }),
-  ]);
-
-  console.log(`   ✓ ${customers.length} clientes criados`);
-
-  // ============================================
-  // 3. CONTRACTS
-  // ============================================
-  console.log('📝 Criando contratos...');
-  const contracts = await Promise.all([
-    prisma.contract.create({
-      data: {
-        customerId: customers[0].id,
-        contractNumber: 'CT-2023-1001',
-        startDate: '01/01/2023',
-        endDate: '31/12/2023',
-        totalVolume: 150000,
-        consumedVolume: 95000,
-        unitPrice: 5.50,
-        product: 'Diesel S-10',
-        status: 'Ativo',
-      },
-    }),
-    prisma.contract.create({
-      data: {
-        customerId: customers[1].id,
-        contractNumber: 'CT-2023-1002',
-        startDate: '01/02/2023',
-        endDate: '31/01/2024',
-        totalVolume: 200000,
-        consumedVolume: 120000,
-        unitPrice: 5.45,
-        product: 'Diesel S-10',
-        status: 'Ativo',
-      },
-    }),
-    prisma.contract.create({
-      data: {
-        customerId: customers[2].id,
-        contractNumber: 'CT-2023-1003',
-        startDate: '15/03/2023',
-        endDate: '14/03/2024',
-        totalVolume: 300000,
-        consumedVolume: 285000,
-        unitPrice: 5.40,
-        product: 'Diesel S-500',
-        status: 'Ativo',
-      },
-    }),
-    prisma.contract.create({
-      data: {
-        customerId: customers[3].id,
-        contractNumber: 'CT-2023-1004',
-        startDate: '01/04/2023',
-        endDate: '31/03/2024',
-        totalVolume: 100000,
-        consumedVolume: 45000,
-        unitPrice: 5.55,
-        product: 'Diesel S-10',
-        status: 'Ativo',
-      },
-    }),
-    prisma.contract.create({
-      data: {
-        customerId: customers[5].id,
-        contractNumber: 'CT-2023-1005',
-        startDate: '01/05/2023',
-        endDate: '30/04/2024',
-        totalVolume: 250000,
-        consumedVolume: 180000,
-        unitPrice: 5.42,
-        product: 'Diesel S-10',
-        status: 'Ativo',
-      },
-    }),
-    prisma.contract.create({
-      data: {
-        customerId: customers[1].id,
-        contractNumber: 'CT-2023-1006',
-        startDate: '01/06/2023',
-        endDate: '31/05/2024',
-        totalVolume: 50000,
-        consumedVolume: 12000,
-        unitPrice: 3.20,
-        product: 'Arla 32',
-        status: 'Ativo',
-      },
-    }),
-  ]);
-
-  console.log(`   ✓ ${contracts.length} contratos criados`);
-
-  // ============================================
-  // 4. VEHICLES
-  // ============================================
-  console.log('📝 Criando veículos...');
-  const vehicleData = [
-    { plate: 'ABC-1234', model: 'Scania R450', driver: 'Carlos Silva', status: 'Operacional' },
-    { plate: 'DEF-5678', model: 'Volvo FH540', driver: 'João Pereira', status: 'Operacional' },
-    { plate: 'GHI-9012', model: 'Mercedes-Benz Actros', driver: 'Marcos Almeida', status: 'Em Manutenção' },
-    { plate: 'JKL-3456', model: 'Scania R450', driver: 'Lucas Souza', status: 'Operacional' },
-    { plate: 'MNO-7890', model: 'Volvo FH540', driver: 'Carlos Silva', status: 'Operacional' },
-    { plate: 'PQR-1122', model: 'Mercedes-Benz Actros', driver: 'João Pereira', status: 'Operacional' },
-    { plate: 'STU-3344', model: 'Scania R450', driver: 'Marcos Almeida', status: 'Inativo' },
-    { plate: 'VWX-5566', model: 'Volvo FH540', driver: 'Lucas Souza', status: 'Operacional' },
-    { plate: 'YZA-7788', model: 'Mercedes-Benz Actros', driver: 'Carlos Silva', status: 'Operacional' },
-    { plate: 'BCD-9900', model: 'Scania R450', driver: 'João Pereira', status: 'Operacional' },
-    { plate: 'EFG-1212', model: 'Volvo FH540', driver: 'Marcos Almeida', status: 'Operacional' },
-    { plate: 'HIJ-3434', model: 'Mercedes-Benz Actros', driver: 'Lucas Souza', status: 'Em Manutenção' },
-    { plate: 'KLM-5656', model: 'Scania R450', driver: 'Carlos Silva', status: 'Operacional' },
-    { plate: 'NOP-7878', model: 'Volvo FH540', driver: 'João Pereira', status: 'Operacional' },
-    { plate: 'QRS-9090', model: 'Mercedes-Benz Actros', driver: 'Marcos Almeida', status: 'Operacional' },
-  ];
-
-  for (const vehicle of vehicleData) {
-    const lastInspection = new Date(2023, 9, 15);
-    const nextInspection = new Date(lastInspection.getTime() + 6 * 30 * 24 * 60 * 60 * 1000);
-
-    await prisma.vehicle.create({
-      data: {
-        ...vehicle,
-        lastInspection: lastInspection.toLocaleDateString('pt-BR'),
-        nextInspection: nextInspection.toLocaleDateString('pt-BR'),
-      },
-    });
-  }
-
-  console.log(`   ✓ ${await prisma.vehicle.count()} veículos criados`);
-
-  // ============================================
-  // 5. INVOICES
-  // ============================================
-  console.log('📝 Criando faturas...');
-
-  for (let i = 0; i < 25; i++) {
-    const issueDate = new Date(2023, 10 - Math.floor(i / 3), 28 - (i % 28));
-    const dueDate = new Date(issueDate.getTime() + 30 * 24 * 60 * 60 * 1000);
-
-    let status: string;
-    if (i === 0) status = 'Vencida';
-    else if (i < 4) status = 'Em Aberto';
-    else status = 'Paga';
-
-    await prisma.invoice.create({
-      data: {
-        id: `NF-00${12345 + i}`,
-        issueDate: issueDate.toLocaleDateString('pt-BR'),
-        dueDate: dueDate.toLocaleDateString('pt-BR'),
-        amount: parseFloat((Math.random() * (15000 - 2000) + 2000).toFixed(2)),
-        status,
-      },
-    });
-  }
-
-  console.log(`   ✓ ${await prisma.invoice.count()} faturas criadas`);
-
-  // ============================================
-  // 6. DELIVERIES
-  // ============================================
-  console.log('📝 Criando entregas...');
-  const deliveryStatuses = ['Solicitado', 'Agendado', 'Em Trânsito', 'Entregue', 'Cancelado'];
-  const products = ['Diesel S-10', 'Diesel S-500', 'Arla 32'];
-
-  for (let i = 0; i < 20; i++) {
-    const date = new Date(2023, 10, 28 - i * 2);
-    const status = i < 2 ? 'Entregue' : deliveryStatuses[i % deliveryStatuses.length];
-
-    await prisma.delivery.create({
-      data: {
-        id: `ENT-0${54321 - i}`,
-        orderId: `PED-0${98765 - i}`,
-        date: date.toLocaleString('pt-BR'),
-        product: products[i % products.length],
-        volume: Math.floor(Math.random() * (10000 - 1000) + 1000),
-        status,
-        deliveryLat: -23.5505 + (Math.random() - 0.5) * 0.1,
-        deliveryLng: -46.6333 + (Math.random() - 0.5) * 0.1,
-        deliveryAddress: 'Rua Fictícia, 123 - São Paulo, SP',
-        proofOfDeliveryUrl: `https://picsum.photos/seed/${i}/800/600`,
-      },
-    });
-  }
-
-  console.log(`   ✓ ${await prisma.delivery.count()} entregas criadas`);
-
-  // ============================================
-  // 7. PAYMENT REQUESTS
-  // ============================================
-  console.log('📝 Criando solicitações de pagamento...');
-  const paymentStatuses = ['Pendente', 'Aprovado', 'Rejeitado'];
-  const categories = ['Fornecedor', 'Imposto', 'Serviço', 'Reembolso'];
-  const priorities = ['Alta', 'Normal'];
-  const beneficiaries = ['Fornecedor A', 'Governo Federal', 'Consultoria XYZ', 'Funcionário X'];
-
-  for (let i = 0; i < 10; i++) {
-    const requestDate = new Date(2023, 10, 28 - i);
-    const dueDate = new Date(requestDate.getTime() + 15 * 24 * 60 * 60 * 1000);
-    const status = i < 2 ? 'Pendente' : paymentStatuses[(i + 1) % paymentStatuses.length];
-
-    await prisma.paymentRequest.create({
-      data: {
-        id: `PAY-REQ-00${i + 1}`,
-        invoiceId: `NF-00${12345 + i}`,
-        amount: parseFloat((Math.random() * (15000 - 2000) + 2000).toFixed(2)),
-        requester: 'Financeiro',
-        requestDate: requestDate.toLocaleDateString('pt-BR'),
-        status,
-        beneficiary: beneficiaries[i % beneficiaries.length],
-        dueDate: dueDate.toISOString().split('T')[0],
-        category: categories[i % categories.length],
-        description: `Pagamento referente a ${categories[i % categories.length]}`,
-        priority: priorities[i % priorities.length],
-        attachmentUrl: 'boleto_fake.pdf',
-      },
-    });
-  }
-
-  console.log(`   ✓ ${await prisma.paymentRequest.count()} solicitações de pagamento criadas`);
-
-  // ============================================
-  // 8. PEOPLE
-  // ============================================
-  console.log('📝 Criando pessoas...');
-  const peopleData = [
-    { name: 'Ana Costa', role: 'Motorista', contact: '(11) 98765-4321', status: 'Ativo' },
-    { name: 'Beatriz Martins', role: 'Analista Logístico', contact: '(11) 97654-3210', status: 'Ativo' },
-    { name: 'Carlos Dias', role: 'Gerente de Frota', contact: '(11) 96543-2109', status: 'Ativo' },
-    { name: 'Daniela Rocha', role: 'Assistente ADM', contact: '(11) 95432-1098', status: 'Ativo' },
-    { name: 'Eduardo Lima', role: 'Motorista', contact: '(11) 94321-0987', status: 'Inativo' },
-    { name: 'Fernanda Silva', role: 'Analista Logístico', contact: '(11) 93210-9876', status: 'Ativo' },
-    { name: 'Gabriel Santos', role: 'Motorista', contact: '(11) 92109-8765', status: 'Ativo' },
-    { name: 'Helena Oliveira', role: 'Assistente ADM', contact: '(11) 91098-7654', status: 'Ativo' },
-    { name: 'Igor Pereira', role: 'Motorista', contact: '(11) 90987-6543', status: 'Ativo' },
-    { name: 'Juliana Costa', role: 'Gerente de Frota', contact: '(11) 89876-5432', status: 'Ativo' },
-    { name: 'Kevin Almeida', role: 'Motorista', contact: '(11) 88765-4321', status: 'Inativo' },
-    { name: 'Larissa Souza', role: 'Analista Logístico', contact: '(11) 87654-3210', status: 'Ativo' },
-  ];
-
-  for (const person of peopleData) {
-    await prisma.person.create({ data: person });
-  }
-
-  console.log(`   ✓ ${await prisma.person.count()} pessoas criadas`);
-
-  // ============================================
-  // 9. BOT MESSAGES
-  // ============================================
-  console.log('📝 Criando mensagens do bot...');
-  const botMessages = [
-    { sender: 'BOT', text: 'Novo pedido recebido do cliente "Posto Central": 5000L de Diesel S-10. Agendar entrega?', timestamp: '09:30' },
-    { sender: 'ADM', text: 'Confirmado. Agendar para amanhã, 08:00.', timestamp: '09:31' },
-    { sender: 'BOT', text: 'Entrega agendada. Deseja notificar o motorista João Pereira?', timestamp: '09:31' },
-    { sender: 'ADM', text: 'Sim.', timestamp: '09:32' },
-    { sender: 'BOT', text: 'O cliente "Fazenda Boa Vista" está com baixo nível de crédito. Gerar alerta?', timestamp: '10:15' },
-    { sender: 'ADM', text: 'Sim, enviar alerta para o financeiro.', timestamp: '10:16' },
-  ];
-
-  for (const message of botMessages) {
-    await prisma.botMessage.create({ data: message });
-  }
-
-  console.log(`   ✓ ${await prisma.botMessage.count()} mensagens do bot criadas`);
 
   console.log('');
   console.log('='.repeat(60));
-  console.log('🚀 Banco de dados Neon conectado e populado com sucesso!');
+  console.log('🚀 SEED CONCLUÍDO COM SUCESSO!');
   console.log('='.repeat(60));
-  console.log('');
-  console.log('📊 Resumo:');
-  console.log(`   • ${await prisma.company.count()} empresas`);
-  console.log(`   • ${await prisma.user.count()} usuários`);
-  console.log(`   • ${await prisma.customer.count()} clientes`);
-  console.log(`   • ${await prisma.contract.count()} contratos`);
-  console.log(`   • ${await prisma.vehicle.count()} veículos`);
-  console.log(`   • ${await prisma.invoice.count()} faturas`);
-  console.log(`   • ${await prisma.delivery.count()} entregas`);
-  console.log(`   • ${await prisma.paymentRequest.count()} solicitações de pagamento`);
-  console.log(`   • ${await prisma.person.count()} pessoas`);
-  console.log(`   • ${await prisma.botMessage.count()} mensagens do bot`);
+  console.log(`   • Empresa: Tetra OIL Matriz`);
+  console.log(`   • Usuários: admin@tetraoil.com.br (Senha: 123456)`);
+  console.log(`   • Dados gerados: 30 Clientes, 45 Contratos, 150 Faturas, 80 Entregas`);
   console.log('');
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Erro ao popular banco de dados:', e);
+    console.error('❌ Erro no seed:', e);
     process.exit(1);
   })
   .finally(async () => {

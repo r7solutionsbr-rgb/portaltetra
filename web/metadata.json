@@ -1,5 +1,5 @@
 {
-  "name": "Portal do Cliente TRR",
-  "description": "Um portal gerencial para clientes de uma empresa TRR, permitindo a gestão financeira, auditoria de entregas e visualização de dashboards executivos.",
+  "name": "Portal Tetra OIL",
+  "description": "Portal corporativo da Tetra OIL para gestão de clientes, frotas e financeiro.",
   "requestFramePermissions": []
 }

@@ -35,7 +35,7 @@ export const Login: React.FC = () => {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                         </svg>
                     </div>
-                    <h1 className="text-2xl font-bold text-white mb-2">Portal do Cliente TRR</h1>
+                    <h1 className="text-2xl font-bold text-white mb-2">Portal Tetra OIL</h1>
                     <p className="text-slate-400">Entre com suas credenciais para acessar</p>
                 </div>
 
