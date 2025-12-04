@@ -1,0 +1,168 @@
+// Prisma Schema for Portal do Cliente TRR
+// Database: PostgreSQL (Neon)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER MODEL
+// ============================================
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  company   String
+  role      String   // Gestor, Financeiro, Auditor, Operacional, Comercial
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+// ============================================
+// CUSTOMER MODEL (CRM)
+// ============================================
+model Customer {
+  id          String     @id @default(uuid())
+  name        String
+  cnpj        String     @unique
+  segment     String     // Transporte, Agro, Indústria
+  status      String     // Ativo, Bloqueado
+  creditLimit Float
+  salesperson String
+  contracts   Contract[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@map("customers")
+}
+
+// ============================================
+// CONTRACT MODEL
+// ============================================
+model Contract {
+  id              String   @id @default(uuid())
+  customerId      String
+  customer        Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  contractNumber  String   @unique
+  startDate       String
+  endDate         String
+  totalVolume     Float
+  consumedVolume  Float
+  unitPrice       Float
+  product         String   // Diesel S-10, Diesel S-500, Arla 32
+  status          String   // Ativo, Concluído, Cancelado
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("contracts")
+}
+
+// ============================================
+// VEHICLE MODEL (Fleet Management)
+// ============================================
+model Vehicle {
+  id             String   @id @default(uuid())
+  plate          String   @unique
+  model          String
+  driver         String
+  lastInspection String
+  nextInspection String
+  status         String   // Operacional, Em Manutenção, Inativo
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("vehicles")
+}
+
+// ============================================
+// PAYMENT REQUEST MODEL (Financial)
+// ============================================
+model PaymentRequest {
+  id            String   @id @default(uuid())
+  invoiceId     String
+  amount        Float
+  requester     String
+  requestDate   String
+  status        String   // Pendente, Aprovado, Rejeitado
+  beneficiary   String
+  dueDate       String
+  category      String   // Fornecedor, Imposto, Serviço, Reembolso
+  description   String
+  attachmentUrl String?
+  priority      String   // Alta, Normal
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("payment_requests")
+}
+
+// ============================================
+// INVOICE MODEL
+// ============================================
+model Invoice {
+  id        String   @id @default(uuid())
+  issueDate String
+  dueDate   String
+  amount    Float
+  status    String   // Paga, Em Aberto, Vencida
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("invoices")
+}
+
+// ============================================
+// DELIVERY MODEL (Audit)
+// ============================================
+model Delivery {
+  id                 String   @id @default(uuid())
+  orderId            String
+  date               String
+  product            String
+  volume             Int
+  status             String   // Solicitado, Agendado, Em Trânsito, Entregue, Cancelado
+  deliveryLat        Float
+  deliveryLng        Float
+  deliveryAddress    String
+  proofOfDeliveryUrl String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("deliveries")
+}
+
+// ============================================
+// PERSON MODEL (People Management)
+// ============================================
+model Person {
+  id        String   @id @default(uuid())
+  name      String
+  role      String
+  contact   String
+  status    String   // Ativo, Inativo
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("people")
+}
+
+// ============================================
+// BOT MESSAGE MODEL (AI Assistant)
+// ============================================
+model BotMessage {
+  id        Int      @id @default(autoincrement())
+  sender    String   // BOT, ADM
+  text      String
+  timestamp String
+  createdAt DateTime @default(now())
+
+  @@map("bot_messages")
+}

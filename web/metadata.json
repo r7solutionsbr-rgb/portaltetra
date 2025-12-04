@@ -1,0 +1,5 @@
+{
+  "name": "Portal do Cliente TRR",
+  "description": "Um portal gerencial para clientes de uma empresa TRR, permitindo a gestão financeira, auditoria de entregas e visualização de dashboards executivos.",
+  "requestFramePermissions": []
+}
